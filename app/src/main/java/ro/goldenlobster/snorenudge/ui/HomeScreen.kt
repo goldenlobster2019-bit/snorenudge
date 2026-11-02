@@ -23,6 +23,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import kotlinx.coroutines.delay
+import ro.goldenlobster.snorenudge.data.AppDatabase
 import ro.goldenlobster.snorenudge.service.MonitorState
 import java.util.Locale
 
@@ -32,7 +33,13 @@ fun HomeScreen(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onLiveTest: () -> Unit,
+    onHistory: () -> Unit,
+    onSettings: () -> Unit,
+    onLastNight: (Long) -> Unit,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lastNight by remember { AppDatabase.get(ctx.applicationContext).sessions().observeLatestFinished() }
+        .collectAsStateWithLifecycle(initialValue = null)
     val snap by MonitorState.state.collectAsStateWithLifecycle()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(snap.running) {
@@ -131,6 +138,26 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            lastNight?.let { night ->
+                item {
+                    FilledTonalButton(
+                        onClick = { onLastNight(night.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Last night") }
+                }
+            }
+            item {
+                FilledTonalButton(
+                    onClick = onHistory,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("History") }
+            }
+            item {
+                FilledTonalButton(
+                    onClick = onSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Settings") }
             }
             item {
                 FilledTonalButton(

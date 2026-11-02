@@ -38,6 +38,10 @@ Microphone (16 kHz mono)
 - One-tap Start / Stop, with elapsed time, snore count and nudge count
 - **Live test** screen: live level meter, noise floor, snoring score, top label and inference time, plus test buttons for each vibration level
 - **Test mode** for daytime testing (no start delay, short cooldown)
+- **History** of the last 30 nights: snoring minutes and nudges per night, with a 30-day chart
+- **Night detail**: a timeline in 10-minute steps with every nudge marked by level, plus stats for the night
+- **Settings**: sensitivity, cooldown, start delay, snores needed, auto-stop time, vibration strength, nightly cap
+- **Tile** to start or stop a session straight from the watch face carousel
 - Night log as CSV in app-private storage, for tuning thresholds
 - Round-screen UI built with Compose for Wear OS, rotating-bezel scrolling, dark only
 
@@ -98,7 +102,7 @@ Columns: `ts,type,snore,competitor,top,topScore,peakDb,floorDb,level,note`. Row 
 
 ## Tuning
 
-All thresholds live in [`DetectionConfig`](app/src/main/java/ro/goldenlobster/snorenudge/detect/DetectionConfig.kt):
+Most of these can be changed on the watch in **Settings**. The defaults live in [`DetectionConfig`](app/src/main/java/ro/goldenlobster/snorenudge/detect/DetectionConfig.kt):
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -118,8 +122,10 @@ app/src/main/java/ro/goldenlobster/snorenudge/
   ml/        YAMNet classifier (LiteRT) and class map
   detect/    frame filter, event builder, episode detector (pure Kotlin, unit tested)
   haptics/   vibration patterns and controller
+  data/      Room database (nights, snore events, nudges), settings (DataStore), aggregations
   service/   foreground service, wake lock, ongoing activity, night log
-  ui/        Home, Live test, Setup screens (Compose for Wear OS)
+  tile/      Start/Stop tile
+  ui/        Home, Live test, Setup, History, Night detail, Settings (Compose for Wear OS)
 ```
 
 The detection logic is plain Kotlin with injected clocks and is covered by JVM unit tests:
@@ -135,9 +141,9 @@ The detection logic is plain Kotlin with injected clocks and is covered by JVM u
 - [x] Microphone service that survives the night with the screen off
 - [x] On-device snoring detection with YAMNet
 - [x] Nudging with escalation, cooldown and start delay
-- [ ] Night history screen with a snoring timeline
-- [ ] Settings screen (sensitivity, cooldown, stop time, vibration strength)
-- [ ] Start/Stop tile
+- [x] Night history: last 30 nights and a detailed timeline of each night
+- [x] Settings screen (sensitivity, cooldown, start delay, stop time, vibration strength)
+- [x] Start/Stop tile
 - [ ] Threshold tuning from real nights
 
 ## Credits

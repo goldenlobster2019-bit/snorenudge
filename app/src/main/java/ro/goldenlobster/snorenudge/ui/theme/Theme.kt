@@ -32,3 +32,22 @@ private val SnoreColors = ColorScheme(
 fun SnoreNudgeTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = SnoreColors, content = content)
 }
+
+/** Calm dark palette for the history charts. */
+object ChartColors {
+    val Card = Color(0xFF131A2C)
+    val Snoring = Color(0xFF5FA8A0)
+    val SnoringDim = Color(0xFF2F5652)
+    val NudgeL1 = Color(0xFFF0CF8A)
+    val NudgeL2 = Color(0xFFE8A33D)
+    val NudgeL3 = Color(0xFFD9692B)
+    val DelayShade = Color(0xFF1C2540)
+    val Axis = Color(0xFF3A425C)
+    val Label = Color(0xFF9AA0B5)
+
+    fun nudge(level: Int): Color = when (level) {
+        1 -> NudgeL1
+        2 -> NudgeL2
+        else -> NudgeL3
+    }
+}

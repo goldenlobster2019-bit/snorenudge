@@ -7,9 +7,10 @@ import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import ro.goldenlobster.snorenudge.data.VibrationStrength
 
 /** Plays nudge patterns directly on the vibrator with alarm usage (not via notifications). */
-class VibrationController(context: Context) {
+class VibrationController(context: Context, private val strength: VibrationStrength = VibrationStrength.MEDIUM) {
 
     private val vibrator: Vibrator =
         if (Build.VERSION.SDK_INT >= 31) {
@@ -20,7 +21,7 @@ class VibrationController(context: Context) {
         }
 
     fun vibrate(level: Int) {
-        val p = Patterns.forLevel(level)
+        val p = Patterns.forLevel(level, strength.scale)
         val effect = if (vibrator.hasAmplitudeControl()) {
             VibrationEffect.createWaveform(p.timings, p.amplitudes, -1)
         } else {

@@ -33,7 +33,10 @@ import ro.goldenlobster.snorenudge.audio.DbMeter
 import ro.goldenlobster.snorenudge.audio.EnergyGate
 import ro.goldenlobster.snorenudge.audio.Resampler
 import ro.goldenlobster.snorenudge.audio.RingBuffer
-import ro.goldenlobster.snorenudge.detect.DetectionConfig
+import ro.goldenlobster.snorenudge.data.AppSettings
+import ro.goldenlobster.snorenudge.data.SessionRecorder
+import ro.goldenlobster.snorenudge.data.SettingsRepository
+import ro.goldenlobster.snorenudge.tile.TileUpdater
 import ro.goldenlobster.snorenudge.detect.DetectionPipeline
 import ro.goldenlobster.snorenudge.detect.EpisodeDecision
 import ro.goldenlobster.snorenudge.detect.PipelineResult
@@ -77,6 +80,9 @@ class SnoreMonitorService : Service() {
     private var batteryReceiver: BroadcastReceiver? = null
     private var statNudges = 0
     private var statEvents = 0
+    private var recorder: SessionRecorder? = null
+    private var sessionStartWall = 0L
+    private var lastTileUpdate = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -93,7 +99,16 @@ class SnoreMonitorService : Service() {
         }
         if (!started) {
             started = true
-            startMonitoring()
+            // Settings come from DataStore; load them off the main thread, then start.
+            scope.launch {
+                val settings = try {
+                    SettingsRepository(applicationContext).current()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Settings read failed, using defaults", e)
+                    AppSettings()
+                }
+                if (started) startMonitoring(settings)
+            }
         }
         return START_NOT_STICKY
     }
@@ -129,14 +144,16 @@ class SnoreMonitorService : Service() {
         }
     }
 
-    private fun startMonitoring() {
+    private fun startMonitoring(settings: AppSettings) {
         val now = System.currentTimeMillis()
         val testMode = MonitorState.state.value.testMode
-        val config = if (testMode) DetectionConfig.testMode() else DetectionConfig()
+        val config = settings.toDetectionConfig(testMode)
         sessionStartElapsed = SystemClock.elapsedRealtime()
+        sessionStartWall = now
         startDelayMs = config.startDelayMs
         pipeline = DetectionPipeline(config, sessionStartElapsed)
-        vibration = VibrationController(applicationContext)
+        vibration = VibrationController(applicationContext, settings.strength)
+        recorder = SessionRecorder(applicationContext).also { it.start(now, testMode, settings.summary(testMode)) }
         nightLog = NightLog(File(filesDir, "nights"), now).also {
             it.row(now, "start", note = "testMode=$testMode ${config.summary()}")
         }
@@ -160,17 +177,20 @@ class SnoreMonitorService : Service() {
         }
         wakeLock = WakeLockHolder(this).also { it.acquire(MAX_SESSION_MS) }
 
-        val stopAtLocal = SessionTimes.nextLocalTimeAfter(now, STOP_HOUR, STOP_MINUTE)
-        val useLocal = stopAtLocal - now < MAX_SESSION_MS
+        val stopAtLocal = if (settings.autoStopMinutes >= 0) {
+            SessionTimes.nextLocalTimeAfter(now, settings.autoStopMinutes / 60, settings.autoStopMinutes % 60)
+        } else Long.MAX_VALUE
+        val useLocal = stopAtLocal != Long.MAX_VALUE && stopAtLocal - now < MAX_SESSION_MS
         val stopDelay = if (useLocal) stopAtLocal - now else MAX_SESSION_MS
         autoStopJob = scope.launch {
             delay(stopDelay)
-            endReason = if (useLocal) "stopAt0730" else "maxSession"
+            endReason = if (useLocal) "stopAt" else "maxSession"
             Log.i(TAG, "Auto stop: $endReason")
             stopSelf()
         }
         registerBatteryReceiver()
         captureJob = scope.launch { captureLoop() }
+        TileUpdater.request(applicationContext)
     }
 
     private suspend fun captureLoop() {
@@ -375,6 +395,7 @@ class SnoreMonitorService : Service() {
             ),
         )
         nightLog?.row(wall, "event", snore = ev.maxScore, peakDb = ev.peakDb, note = ev.durationMs.toString())
+        recorder?.onEvent(sessionStartWall + (ev.startMs - sessionStartElapsed), ev.durationMs, ev.maxScore, ev.peakDb)
         MonitorState.update { it.copy(snoreEventCount = p.eventCount) }
         when (val d = res.decision) {
             is EpisodeDecision.Nudge -> {
@@ -386,6 +407,11 @@ class SnoreMonitorService : Service() {
                 }
                 Log.i(TAG, "nudge level=${d.level} total=${p.episodes.nudgeCount}")
                 nightLog?.row(wall, "nudge", level = d.level, note = "total=${p.episodes.nudgeCount}")
+                recorder?.onNudge(wall, d.level)
+                if (wall - lastTileUpdate >= TILE_THROTTLE_MS) {
+                    lastTileUpdate = wall
+                    TileUpdater.request(applicationContext)
+                }
                 MonitorState.update {
                     it.copy(nudgeCount = p.episodes.nudgeCount, lastNudgeAt = wall, lastNudgeLevel = d.level)
                 }
@@ -422,6 +448,7 @@ class SnoreMonitorService : Service() {
 
     private fun logSummary(gate: EnergyGate) {
         val n = statInferences
+        val ms = statInferenceMs
         val avg = if (n > 0) statInferenceMs.toFloat() / n else 0f
         statInferences = 0
         statInferenceMs = 0L
@@ -445,6 +472,7 @@ class SnoreMonitorService : Service() {
             ),
         )
         nightLog?.flush()
+        recorder?.onMinuteSummary(System.currentTimeMillis(), gate.openRatio, gate.noiseFloorDb, n, ms)
     }
 
     override fun onDestroy() {
@@ -463,6 +491,14 @@ class SnoreMonitorService : Service() {
         }
         nightLog?.close()
         nightLog = null
+        recorder?.let { r ->
+            val snap = MonitorState.state.value
+            val appCtx = applicationContext
+            r.finish(System.currentTimeMillis(), endReason, snap.gateOpenRatio, snap.noiseFloorDb) {
+                TileUpdater.request(appCtx)
+            }
+        }
+        recorder = null
         wakeLock?.release()
         wakeLock = null
         // Close on the inference thread so a running inference finishes first.
@@ -496,8 +532,7 @@ class SnoreMonitorService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val HOP_SAMPLES = 8000
         private const val MAX_SESSION_MS = 10L * 60 * 60 * 1000
-        private const val STOP_HOUR = 7
-        private const val STOP_MINUTE = 30
+        private const val TILE_THROTTLE_MS = 60_000L
         private const val LOW_BATTERY_PCT = 10
         private const val RECENT_CHUNKS = 10
         private const val LOG_SNORE_MIN = 0.15f
