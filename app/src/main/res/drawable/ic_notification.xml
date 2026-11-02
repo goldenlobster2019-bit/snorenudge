@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Crescent -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3C7,3 3,7 3,12C3,17 7,21 12,21C15.6,21 18.7,18.9 20.1,15.8C19.4,16 18.7,16.1 18,16.1C13.9,16.1 10.6,12.8 10.6,8.7C10.6,6.5 11.5,4.5 13,3.1C12.7,3 12.3,3 12,3Z" />
+</vector>
