@@ -7,9 +7,11 @@ SnoreNudge runs entirely on the watch. It listens through the watch's own microp
 Built for and tested on the **Samsung Galaxy Watch4 Classic** (Wear OS, Android 14). It works with a watch paired to an iPhone, or with no phone at all.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="240" alt="Home screen with the Start button">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/menu.png" width="240" alt="Home menu: History, Live test, Settings">
+  <img src="docs/screenshots/home.png" width="220" alt="Home screen with the Start button centered">
+  &nbsp;
+  <img src="docs/screenshots/scroll.png" width="220" alt="Scrolling: last night summary and History">
+  &nbsp;
+  <img src="docs/screenshots/menu.png" width="220" alt="Menu: Last night, History, Live test">
 </p>
 <p align="center"><sub>Running on a Galaxy Watch4 Classic (46 mm). Screenshots captured over adb.</sub></p>
 
