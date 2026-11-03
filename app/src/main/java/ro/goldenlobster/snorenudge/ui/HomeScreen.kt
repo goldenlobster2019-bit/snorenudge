@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +51,9 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Warning
+import androidx.wear.compose.foundation.lazy.AutoCenteringParams
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumnDefaults
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
@@ -65,6 +68,7 @@ import kotlinx.coroutines.delay
 import ro.goldenlobster.snorenudge.data.AppDatabase
 import ro.goldenlobster.snorenudge.data.NightSession
 import ro.goldenlobster.snorenudge.service.MonitorState
+import ro.goldenlobster.snorenudge.ui.components.CenteredTonalButton
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.Pill
@@ -93,7 +97,10 @@ fun HomeScreen(
         }
     }
     val battery = rememberBattery()
-    val listState = rememberScalingLazyListState()
+    // Main element (running ring / idle Start button) sits at a fixed index in each mode.
+    val heroIndex = if (snap.running) RUNNING_HERO_INDEX else IDLE_START_INDEX
+    key(snap.running) {
+    val listState = rememberScalingLazyListState(initialCenterItemIndex = heroIndex, initialCenterItemScrollOffset = 0)
 
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
@@ -102,6 +109,13 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = AutoCenteringParams(itemIndex = heroIndex, itemOffset = 0),
+            scalingParams = ScalingLazyColumnDefaults.scalingParams(
+                edgeScale = 0.6f,
+                edgeAlpha = 0.3f,
+                minTransitionArea = 0.4f,
+                maxTransitionArea = 0.75f,
+            ),
         ) {
             if (snap.running) {
                 runningItems(snap, now, onStop)
@@ -123,7 +137,13 @@ fun HomeScreen(
             }
         }
     }
+    }
 }
+
+/** Idle list order: title = 0, Start = 1, everything optional comes after. */
+private const val IDLE_START_INDEX = 1
+/** Running list order: ring hero = 0. */
+private const val RUNNING_HERO_INDEX = 0
 
 private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.idleItems(
     testMode: Boolean,
@@ -148,55 +168,55 @@ private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.idleItems
     item { StartButton(onStart) }
     if (testMode) {
         item {
-            FilledTonalButton(
+            CenteredTonalButton(
                 onClick = { MonitorState.setTestMode(false) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                icon = Icons.Rounded.Science,
+                iconTint = Palette.Amber,
+                label = "Test mode on",
+                secondaryLabel = "Tap to turn off",
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = Palette.AmberDeep,
                     contentColor = Palette.Amber,
                     secondaryContentColor = Palette.Amber.copy(alpha = 0.75f),
                 ),
                 border = ButtonDefaults.outlinedButtonBorder(enabled = true, borderColor = Palette.Amber.copy(alpha = 0.5f)),
-                icon = { GlyphIcon(Icons.Rounded.Science, Palette.Amber, size = 22.dp) },
-                label = { Text("Test mode on") },
-                secondaryLabel = { Text("Tap to turn off") },
             )
         }
     }
     item { BatteryRow(battery) }
     lastNight?.let { night ->
         item {
-            FilledTonalButton(
+            CenteredTonalButton(
                 onClick = { onLastNight(night.id) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                icon = { GlyphIcon(Icons.Rounded.Bedtime, Palette.Teal, size = 22.dp) },
-                label = { Text("Last night") },
-                secondaryLabel = { Text("${night.snoringMinutes} min snoring, ${night.nudges} nudges", maxLines = 2) },
+                icon = Icons.Rounded.Bedtime,
+                iconTint = Palette.Teal,
+                label = "Last night",
+                secondaryLabel = "${night.snoringMinutes} min snoring, ${night.nudges} nudges",
             )
         }
     }
     item {
-        FilledTonalButton(
+        CenteredTonalButton(
             onClick = onHistory,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            icon = { GlyphIcon(Icons.Rounded.History, Palette.Teal, size = 22.dp) },
-            label = { Text("History") },
+            icon = Icons.Rounded.History,
+            iconTint = Palette.Teal,
+            label = "History",
         )
     }
     item {
-        FilledTonalButton(
+        CenteredTonalButton(
             onClick = onLiveTest,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            icon = { GlyphIcon(Icons.Rounded.GraphicEq, Palette.Teal, size = 22.dp) },
-            label = { Text("Live test") },
+            icon = Icons.Rounded.GraphicEq,
+            iconTint = Palette.Teal,
+            label = "Live test",
         )
     }
     item {
-        FilledTonalButton(
+        CenteredTonalButton(
             onClick = onSettings,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            icon = { GlyphIcon(Icons.Rounded.Settings, Palette.Teal, size = 22.dp) },
-            label = { Text("Settings") },
+            icon = Icons.Rounded.Settings,
+            iconTint = Palette.Teal,
+            label = "Settings",
         )
     }
     if (!batteryExempt) {

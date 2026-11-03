@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material3.ButtonColors
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
@@ -191,3 +196,47 @@ fun MeterBar(
 /** Outlined container used for status rows (permissions, warnings). */
 fun Modifier.outlinedRow(color: Color = Palette.Outline): Modifier =
     this.border(1.dp, color, RoundedCornerShape(18.dp))
+
+/**
+ * Full-width tonal button whose icon + label (+ optional secondary line) group is centered
+ * horizontally; the icon stays to the left of the text.
+ */
+@Composable
+fun CenteredTonalButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    iconTint: Color,
+    label: String,
+    modifier: Modifier = Modifier,
+    secondaryLabel: String? = null,
+    colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+    border: androidx.compose.foundation.BorderStroke? = null,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
+        colors = colors,
+        border = border,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlyphIcon(icon, iconTint, size = 22.dp)
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = colors.contentColor, textAlign = TextAlign.Center, maxLines = 1)
+                if (secondaryLabel != null) {
+                    Text(
+                        secondaryLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.secondaryContentColor,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+    }
+}
