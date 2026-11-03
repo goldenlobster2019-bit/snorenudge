@@ -6,6 +6,13 @@ SnoreNudge runs entirely on the watch. It listens through the watch's own microp
 
 Built for and tested on the **Samsung Galaxy Watch4 Classic** (Wear OS, Android 14). It works with a watch paired to an iPhone, or with no phone at all.
 
+<p align="center">
+  <img src="docs/screenshots/home.png" width="240" alt="Home screen with the Start button">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/menu.png" width="240" alt="Home menu: History, Live test, Settings">
+</p>
+<p align="center"><sub>Running on a Galaxy Watch4 Classic (46 mm). Screenshots captured over adb.</sub></p>
+
 ---
 
 ## Why
@@ -19,17 +26,17 @@ SnoreNudge moves the whole thing to the wrist. The microphone sits a few centime
 ```
 Microphone (16 kHz mono)
   -> energy gate          only wakes the model when the room gets louder than its noise floor
-  -> YAMNet (LiteRT)      521-class audio classifier, "Snoring" is one of them, ~50 ms per frame on Watch4
+  -> YAMNet (LiteRT)      521-class audio classifier, "Snoring" is one of them, ~45 ms per second of audio on Watch4
   -> frame filter         snoring must beat speech, baby sounds, laughter and coughs, and be loud enough
   -> event builder        merges frames into one snore per breath
   -> episode detector     3 snores within 60 s = an episode
-  -> vibration            gentle first, stronger if snoring continues, then a cooldown
+  -> vibration            firm tap, longer and stronger if snoring continues, again 30 s later
 ```
 
 - **Snoring, not just noise.** Detection uses Google's [YAMNet](https://www.kaggle.com/models/google/yamnet) audio classifier, running on-device through LiteRT (formerly TensorFlow Lite).
 - **Partner and baby friendly.** A frame only counts if the snoring score clearly beats speech, child speech, babbling, baby crying, laughter and coughing, and if it is at least 10 dB above the room's noise floor. That favours the person wearing the watch over someone across the room.
 - **Patient.** Nothing happens in the first 20 minutes, so you can fall asleep. One snore is ignored; three in a minute triggers a nudge.
-- **Escalating, then quiet.** Level 1 is a soft double tap. If snoring continues, it steps up to level 2 and 3, with a 90 s cooldown between nudges and a cap per night.
+- **Persistent, not frantic.** The first nudge is a firm triple tap. If you start snoring again within 5 minutes it switches to a longer, stronger pattern (about 3 s). After each nudge it waits 30 s before it can nudge again, and there is a configurable nightly cap.
 - **Works in Bedtime mode.** Vibrations are sent directly by the app with alarm usage, not as notifications, so Do Not Disturb and Bedtime mode do not swallow them.
 - **Battery aware.** The model only runs when the energy gate is open. The session stops automatically at 07:30, after 10 hours, or when the battery drops to 10% (unless charging).
 
@@ -37,7 +44,7 @@ Microphone (16 kHz mono)
 
 - One-tap Start / Stop, with elapsed time, snore count and nudge count
 - **Live test** screen: live level meter, noise floor, snoring score, top label and inference time, plus test buttons for each vibration level
-- **Test mode** for daytime testing (no start delay, short cooldown)
+- **Test mode** for daytime testing (no start delay), switches itself off after one session
 - **History** of the last 30 nights: snoring minutes and nudges per night, with a 30-day chart
 - **Night detail**: a timeline in 10-minute steps with every nudge marked by level, plus stats for the night
 - **Settings**: sensitivity, cooldown, start delay, snores needed, auto-stop time, vibration strength, nightly cap
@@ -110,9 +117,9 @@ Most of these can be changed on the watch in **Settings**. The defaults live in 
 | `dominanceMargin` | 0.05 | Snoring must beat speech/baby/laughter/cough by this much |
 | `minSnoreDbAboveFloor` | 10 dB | Loudness above the room's noise floor |
 | `eventsToTrigger` / `episodeWindowMs` | 3 / 60 s | Snores needed to count as an episode |
-| `cooldownMs` | 90 s | Quiet time after a nudge |
+| `cooldownMs` | 30 s | Quiet time after a nudge |
 | `startDelayMs` | 20 min | Time to fall asleep before any nudge |
-| `maxNudgesPerNight` | 40 | Safety cap |
+| `maxNudgesPerNight` | 150 | Safety cap (or unlimited) |
 
 ## Project structure
 
