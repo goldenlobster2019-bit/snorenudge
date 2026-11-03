@@ -3,6 +3,16 @@ package ro.goldenlobster.snorenudge.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.HourglassEmpty
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -11,13 +21,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ChildButton
 import androidx.wear.compose.material3.FilledTonalButton
-import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.RadioButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -27,17 +38,21 @@ import ro.goldenlobster.snorenudge.data.Sensitivity
 import ro.goldenlobster.snorenudge.data.SettingsRepository
 import ro.goldenlobster.snorenudge.data.VibrationStrength
 import ro.goldenlobster.snorenudge.haptics.VibrationController
+import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
+import ro.goldenlobster.snorenudge.ui.components.MutedText
+import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.theme.Palette
 
-private class SettingSpec(val key: String, val title: String)
+private class SettingSpec(val key: String, val title: String, val icon: ImageVector)
 
 private val SPECS = listOf(
-    SettingSpec("sensitivity", "Sensitivity"),
-    SettingSpec("events", "Events to trigger"),
-    SettingSpec("cooldown", "Cooldown"),
-    SettingSpec("delay", "Start delay"),
-    SettingSpec("stop", "Auto-stop at"),
-    SettingSpec("vibration", "Vibration strength"),
-    SettingSpec("max", "Max nudges per night"),
+    SettingSpec("sensitivity", "Sensitivity", Icons.Rounded.Tune),
+    SettingSpec("events", "Events to trigger", Icons.Rounded.GraphicEq),
+    SettingSpec("cooldown", "Cooldown", Icons.Rounded.Timer),
+    SettingSpec("delay", "Start delay", Icons.Rounded.HourglassEmpty),
+    SettingSpec("stop", "Auto-stop at", Icons.Rounded.Alarm),
+    SettingSpec("vibration", "Vibration strength", Icons.Rounded.Vibration),
+    SettingSpec("max", "Max nudges per night", Icons.Rounded.NotificationsActive),
 )
 
 private fun valueLabel(key: String, s: AppSettings): String = when (key) {
@@ -47,7 +62,7 @@ private fun valueLabel(key: String, s: AppSettings): String = when (key) {
     "delay" -> if (s.startDelayMin == 0) "None" else "${s.startDelayMin} min"
     "stop" -> if (s.autoStopMinutes < 0) "Off" else AppSettings.formatStop(s.autoStopMinutes)
     "vibration" -> s.strength.label
-    else -> "${s.maxNudges}"
+    else -> AppSettings.formatMax(s.maxNudges)
 }
 
 @Composable
@@ -66,21 +81,15 @@ fun SettingsScreen(onPick: (String) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            item { Text("Settings", style = MaterialTheme.typography.titleSmall) }
-            item {
-                Text(
-                    "Changes apply on next start",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            item { ScreenHeader(Icons.Rounded.Settings, "Settings") }
+            item { MutedText("Changes apply on next start") }
             SPECS.forEach { spec ->
                 item(key = spec.key) {
                     FilledTonalButton(
                         onClick = { onPick(spec.key) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        label = { Text(spec.title) },
+                        icon = { GlyphIcon(spec.icon, Palette.Teal, size = 22.dp) },
+                        label = { Text(spec.title, maxLines = 2) },
                         secondaryLabel = { Text(valueLabel(spec.key, settings)) },
                     )
                 }
@@ -89,14 +98,17 @@ fun SettingsScreen(onPick: (String) -> Unit) {
                 FilledTonalButton(
                     onClick = { VibrationController(ctx, settings.strength).vibrate(2) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    icon = { GlyphIcon(Icons.Rounded.Vibration, Palette.Amber, size = 22.dp) },
                     label = { Text("Test vibration") },
                     secondaryLabel = { Text("Level 2, ${settings.strength.label}") },
                 )
             }
             item {
-                FilledTonalButton(
+                ChildButton(
                     onClick = { scope.launch { repo.reset() } },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    colors = ButtonDefaults.childButtonColors(contentColor = Palette.TextSecondary),
+                    icon = { GlyphIcon(Icons.Rounded.RestartAlt, Palette.TextSecondary, size = 20.dp) },
                     label = { Text("Reset to defaults") },
                 )
             }
@@ -125,8 +137,8 @@ private fun optionsFor(key: String, s: AppSettings): Pair<String, List<Option>> 
     "vibration" -> "Vibration strength" to VibrationStrength.entries.map { o ->
         Option(o.label, s.strength == o) { it.copy(strength = o) }
     }
-    else -> "Max nudges" to AppSettings.MAX_NUDGES.map { v ->
-        Option("$v", s.maxNudges == v) { it.copy(maxNudges = v) }
+    else -> "Max nudges per night" to AppSettings.MAX_NUDGES.map { v ->
+        Option(AppSettings.formatMax(v), s.maxNudges == v) { it.copy(maxNudges = v) }
     }
 }
 
@@ -149,7 +161,7 @@ fun SettingPickerScreen(key: String, onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item { Text(title, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center) }
+            item { ScreenHeader(SPECS.firstOrNull { it.key == key }?.icon ?: Icons.Rounded.Settings, title) }
             options.forEachIndexed { i, o ->
                 item(key = "$key-$i") {
                     RadioButton(

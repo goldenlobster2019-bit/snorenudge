@@ -158,9 +158,14 @@ class SnoreMonitorService : Service() {
             it.row(now, "start", note = "testMode=$testMode batt=${batteryPct()} ${config.summary()}")
         }
         Log.i(TAG, "session start testMode=$testMode ${config.summary()}")
+        val stopAtLocal = if (settings.autoStopMinutes >= 0) {
+            SessionTimes.nextLocalTimeAfter(now, settings.autoStopMinutes / 60, settings.autoStopMinutes % 60)
+        } else Long.MAX_VALUE
+        val useLocal = stopAtLocal != Long.MAX_VALUE && stopAtLocal - now < MAX_SESSION_MS
+        val stopDelay = if (useLocal) stopAtLocal - now else MAX_SESSION_MS
         MonitorState.update {
             MonitorSnapshot(
-                running = true, startedAt = now, liveTestActive = it.liveTestActive, testMode = testMode,
+                running = true, startedAt = now, plannedEndAt = now + stopDelay, liveTestActive = it.liveTestActive, testMode = testMode,
                 startDelayRemainingMs = config.startDelayMs,
             )
         }
@@ -177,11 +182,6 @@ class SnoreMonitorService : Service() {
         }
         wakeLock = WakeLockHolder(this).also { it.acquire(MAX_SESSION_MS) }
 
-        val stopAtLocal = if (settings.autoStopMinutes >= 0) {
-            SessionTimes.nextLocalTimeAfter(now, settings.autoStopMinutes / 60, settings.autoStopMinutes % 60)
-        } else Long.MAX_VALUE
-        val useLocal = stopAtLocal != Long.MAX_VALUE && stopAtLocal - now < MAX_SESSION_MS
-        val stopDelay = if (useLocal) stopAtLocal - now else MAX_SESSION_MS
         autoStopJob = scope.launch {
             delay(stopDelay)
             endReason = if (useLocal) "stopAt" else "maxSession"
@@ -541,7 +541,7 @@ class SnoreMonitorService : Service() {
         private const val TAG = "SnoreNudge"
         private const val CHANNEL_ID = "monitor"
         private const val NOTIFICATION_ID = 1
-        private const val HOP_SAMPLES = 8000
+        private const val HOP_SAMPLES = 16000 // 1.0 s hop (was 0.5 s): halves inference battery cost
         private const val MAX_SESSION_MS = 10L * 60 * 60 * 1000
         private const val TILE_THROTTLE_MS = 60_000L
         private const val LOW_BATTERY_PCT = 10

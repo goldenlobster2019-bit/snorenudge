@@ -18,13 +18,13 @@ enum class VibrationStrength(val label: String, val scale: Float) {
 /** User settings; changes apply on the next session start. */
 data class AppSettings(
     val sensitivity: Sensitivity = Sensitivity.MEDIUM,
-    val cooldownSec: Int = 90,
+    val cooldownSec: Int = 30,
     val startDelayMin: Int = 20,
     val eventsToTrigger: Int = 3,
     /** Minutes after midnight, or [STOP_OFF]. */
     val autoStopMinutes: Int = 7 * 60 + 30,
     val strength: VibrationStrength = VibrationStrength.MEDIUM,
-    val maxNudges: Int = 40,
+    val maxNudges: Int = 150,
 ) {
     fun toDetectionConfig(testMode: Boolean): DetectionConfig {
         val base = DetectionConfig(
@@ -41,19 +41,23 @@ data class AppSettings(
     fun summary(testMode: Boolean): String {
         val c = toDetectionConfig(testMode)
         return String.format(
-            Locale.US, "thr=%.2f events=%d cooldown=%ds delay=%dm stop=%s vib=%s max=%d",
+            Locale.US, "thr=%.2f events=%d cooldown=%ds delay=%dm stop=%s vib=%s max=%s",
             c.scoreThreshold, c.eventsToTrigger, c.cooldownMs / 1000, c.startDelayMs / 60_000L,
-            formatStop(autoStopMinutes), strength.label, c.maxNudgesPerNight,
+            formatStop(autoStopMinutes), strength.label, formatMax(c.maxNudgesPerNight),
         )
     }
 
     companion object {
         const val STOP_OFF = -1
-        val COOLDOWNS = listOf(30, 60, 90, 120, 180, 300)
+        val COOLDOWNS = listOf(15, 30, 45, 60, 90, 120, 180)
         val START_DELAYS = listOf(0, 10, 20, 30, 45, 60)
         val EVENTS = listOf(2, 3, 4, 5)
-        val MAX_NUDGES = listOf(10, 20, 40, 60)
+        /** [UNLIMITED] is stored and mapped as Int.MAX_VALUE. */
+        const val UNLIMITED = Int.MAX_VALUE
+        val MAX_NUDGES = listOf(40, 80, 150, UNLIMITED)
         val AUTO_STOPS: List<Int> = listOf(STOP_OFF) + (6 * 60..9 * 60 step 15)
+
+        fun formatMax(v: Int): String = if (v == UNLIMITED) "Unlimited" else v.toString()
 
         fun formatStop(minutes: Int): String =
             if (minutes < 0) "off" else String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60)

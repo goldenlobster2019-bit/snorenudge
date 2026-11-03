@@ -35,6 +35,8 @@ data class MonitorSnapshot(
     val startDelayRemainingMs: Long = 0L,
     val positiveFrame: Boolean = false,
     val competitorScore: Float = 0f,
+    /** Wall-clock millis of the planned auto-stop (stop-at time or max session), 0 if unknown. */
+    val plannedEndAt: Long = 0L,
 )
 
 /** Process-wide state shared between the service (writer) and the UI (reader). */
@@ -49,8 +51,11 @@ object MonitorState {
     /** Ignored while a session is running (config is captured at session start). */
     fun setTestMode(enabled: Boolean) = update { if (it.running) it else it.copy(testMode = enabled) }
 
-    /** Clears session data but keeps UI-owned flags such as liveTestActive and testMode. */
+    /**
+     * Clears session data but keeps UI-owned flags such as liveTestActive. Test mode switches itself off
+     * when a session ends so a forgotten toggle cannot affect the next real night (not persisted anywhere).
+     */
     fun reset() {
-        _state.update { MonitorSnapshot(liveTestActive = it.liveTestActive, testMode = it.testMode) }
+        _state.update { MonitorSnapshot(liveTestActive = it.liveTestActive, testMode = false) }
     }
 }

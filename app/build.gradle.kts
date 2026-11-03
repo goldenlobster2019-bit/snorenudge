@@ -40,6 +40,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Shrink debug too: material-icons-extended makes the unminified APK ~90 MB.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(
@@ -84,6 +92,8 @@ dependencies {
     implementation(libs.androidx.wear.compose.material3)
     implementation(libs.androidx.wear.compose.foundation)
     implementation(libs.androidx.wear.compose.navigation)
+    // Vector icons (Icons.Rounded.*). Unused icons are removed by R8 in release builds.
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.wear.ongoing)
     implementation(libs.litert)
     implementation(libs.kotlinx.coroutines.android)

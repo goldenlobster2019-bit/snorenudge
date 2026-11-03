@@ -18,16 +18,16 @@ class AppSettingsTest {
 
     @Test fun allFieldsMapped() {
         val c = AppSettings(
-            sensitivity = Sensitivity.HIGH, cooldownSec = 180, startDelayMin = 45, eventsToTrigger = 5, maxNudges = 10,
+            sensitivity = Sensitivity.HIGH, cooldownSec = 180, startDelayMin = 45, eventsToTrigger = 5, maxNudges = 40,
         ).toDetectionConfig(false)
         assertEquals(180_000L, c.cooldownMs)
         assertEquals(45 * 60_000L, c.startDelayMs)
         assertEquals(5, c.eventsToTrigger)
-        assertEquals(10, c.maxNudgesPerNight)
+        assertEquals(40, c.maxNudgesPerNight)
     }
 
     @Test fun testModeOverridesDelayAndCooldownOnly() {
-        val c = AppSettings(cooldownSec = 300, startDelayMin = 60, eventsToTrigger = 4).toDetectionConfig(true)
+        val c = AppSettings(cooldownSec = 120, startDelayMin = 60, eventsToTrigger = 4).toDetectionConfig(true)
         assertEquals(0L, c.startDelayMs)
         assertEquals(30_000L, c.cooldownMs)
         assertEquals(4, c.eventsToTrigger)
@@ -44,5 +44,21 @@ class AppSettingsTest {
         assertEquals(540, AppSettings.AUTO_STOPS.last())
         assertEquals("07:30", AppSettings.formatStop(d.autoStopMinutes))
         assertEquals("off", AppSettings.formatStop(AppSettings.STOP_OFF))
+    }
+
+    @Test fun newDefaultsAndOptions() {
+        val d = AppSettings()
+        assertEquals(30, d.cooldownSec)
+        assertEquals(150, d.maxNudges)
+        assertEquals(listOf(15, 30, 45, 60, 90, 120, 180), AppSettings.COOLDOWNS)
+        assertEquals(listOf(40, 80, 150, Int.MAX_VALUE), AppSettings.MAX_NUDGES)
+        assertEquals("Unlimited", AppSettings.formatMax(Int.MAX_VALUE))
+        assertEquals("80", AppSettings.formatMax(80))
+    }
+
+    @Test fun unlimitedMapsToIntMax() {
+        val c = AppSettings(maxNudges = AppSettings.UNLIMITED).toDetectionConfig(false)
+        assertEquals(Int.MAX_VALUE, c.maxNudgesPerNight)
+        assertTrue(AppSettings(maxNudges = AppSettings.UNLIMITED).summary(false).contains("max=Unlimited"))
     }
 }

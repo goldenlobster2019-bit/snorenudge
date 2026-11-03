@@ -12,22 +12,26 @@ object Patterns {
     fun scaleAmplitude(base: Int, scale: Float): Int =
         if (base <= 0) 0 else (base * scale).roundToInt().coerceIn(1, 255)
 
-    private fun build(pulses: Int, onMs: Long, amp: Int): Pattern {
+    private fun build(pulses: Int, onMs: Long, amp: Int, gapMs: Long = GAP_MS): Pattern {
         val t = ArrayList<Long>()
         val a = ArrayList<Int>()
         t.add(0L); a.add(0)
         for (i in 0 until pulses) {
-            if (i > 0) { t.add(GAP_MS); a.add(0) }
+            if (i > 0) { t.add(gapMs); a.add(0) }
             t.add(onMs); a.add(amp)
         }
         return Pattern(t.toLongArray(), a.toIntArray())
     }
 
+    /** Total duration of a pattern in ms. */
+    fun totalMs(p: Pattern): Long = p.timings.sum()
+
+    /** Level 1 stays available for the low-battery buzz and the strength test; nudges start at level 2. */
     fun forLevel(level: Int, scale: Float = 1f): Pattern {
         val p = when (level) {
             1 -> build(2, 250L, 120)
             2 -> build(3, 350L, 180)
-            else -> build(4, 500L, 255)
+            else -> build(5, 400L, 255, 200L) // ~2.8 s of insistent pulses
         }
         if (scale == 1f) return p
         return Pattern(p.timings, IntArray(p.amplitudes.size) { scaleAmplitude(p.amplitudes[it], scale) })

@@ -22,7 +22,7 @@ class EpisodeDetectorTest {
         val d = EpisodeDetector(noDelay, 0L)
         assertEquals(EpisodeDecision.None, d.feed(0))
         assertEquals(EpisodeDecision.None, d.feed(4_000))
-        assertEquals(EpisodeDecision.Nudge(1), d.feed(8_000))
+        assertEquals(EpisodeDecision.Nudge(2), d.feed(8_000))
         assertEquals(1, d.nudgeCount)
     }
 
@@ -41,8 +41,8 @@ class EpisodeDetectorTest {
 
     @Test fun cooldownSuppressesThenAllows() {
         val d = EpisodeDetector(noDelay, 0L)
-        assertEquals(EpisodeDecision.Nudge(1), d.feedAll(0, 4_000, 8_000))
-        // second episode 20 s later: inside 90 s cooldown
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(0, 4_000, 8_000))
+        // second episode 20 s later: inside the 30 s default cooldown
         assertEquals(
             EpisodeDecision.Suppressed(SuppressReason.COOLDOWN),
             d.feedAll(20_000, 24_000, 28_000),
@@ -50,7 +50,7 @@ class EpisodeDetectorTest {
         assertEquals(1, d.suppressedCooldown)
         assertEquals(1, d.nudgeCount)
         // after cooldown
-        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(100_000, 104_000, 108_000))
+        assertEquals(EpisodeDecision.Nudge(3), d.feedAll(100_000, 104_000, 108_000))
     }
 
     @Test fun suppressedEpisodeClearsWindow() {
@@ -71,7 +71,7 @@ class EpisodeDetectorTest {
         assertEquals(1, d.suppressedStartDelay)
         assertEquals(0, d.nudgeCount)
         val after = 20 * 60_000L
-        assertEquals(EpisodeDecision.Nudge(1), d.feedAll(after, after + 4_000, after + 8_000))
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(after, after + 4_000, after + 8_000))
     }
 
     @Test fun escalationCapsAtThree() {
@@ -83,23 +83,23 @@ class EpisodeDetectorTest {
             levels.add((r as EpisodeDecision.Nudge).level)
             t += 100_000 // beyond cooldown, within 5 min of previous nudge
         }
-        assertEquals(listOf(1, 2, 3, 3, 3), levels)
+        assertEquals(listOf(2, 3, 3, 3, 3), levels)
     }
 
     @Test fun escalationResetsAfterQuietPeriod() {
         val d = EpisodeDetector(noDelay, 0L)
-        assertEquals(EpisodeDecision.Nudge(1), d.feedAll(0, 4_000, 8_000))
-        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(100_000, 104_000, 108_000))
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(0, 4_000, 8_000))
+        assertEquals(EpisodeDecision.Nudge(3), d.feedAll(100_000, 104_000, 108_000))
         val later = 108_000L + 10 * 60_000L + 10_000L
-        assertEquals(EpisodeDecision.Nudge(1), d.feedAll(later, later + 4_000, later + 8_000))
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(later, later + 4_000, later + 8_000))
     }
 
     @Test fun escalationNotKeptBeyondEscalationWindow() {
         val d = EpisodeDetector(noDelay, 0L)
         d.feedAll(0, 4_000, 8_000)
-        d.feedAll(100_000, 104_000, 108_000) // level 2
+        d.feedAll(100_000, 104_000, 108_000) // level 3
         val later = 108_000L + 6 * 60_000L // > 5 min, < 10 min
-        assertEquals(EpisodeDecision.Nudge(1), d.feedAll(later, later + 4_000, later + 8_000))
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(later, later + 4_000, later + 8_000))
     }
 
     @Test fun maxNudgesCap() {
@@ -123,5 +123,38 @@ class EpisodeDetectorTest {
         assertEquals(0L, c.startDelayMs)
         assertEquals(30_000L, c.cooldownMs)
         assertEquals(DetectionConfig().eventsToTrigger, c.eventsToTrigger)
+    }
+
+    @Test fun defaultsCooldown30sMax150() {
+        val c = DetectionConfig()
+        assertEquals(30_000L, c.cooldownMs)
+        assertEquals(150, c.maxNudgesPerNight)
+        assertEquals(300_000L, c.escalationWindowMs)
+    }
+
+    @Test fun renudgesThirtySecondsAfterSnoringResumes() {
+        val d = EpisodeDetector(noDelay, 0L)
+        assertEquals(EpisodeDecision.Nudge(2), d.feedAll(0, 4_000, 8_000)) // nudge at 10 s
+        // snoring continues: episode closing at 25 s is still inside cooldown
+        assertEquals(
+            EpisodeDecision.Suppressed(SuppressReason.COOLDOWN),
+            d.feedAll(15_000, 19_000, 23_000),
+        )
+        // snoring resumes later: first episode closing >= 30 s after the nudge nudges again, escalated
+        assertEquals(EpisodeDecision.Nudge(3), d.feedAll(40_000, 44_000, 48_000))
+    }
+
+    @Test fun unlimitedMaxNeverReached() {
+        val d = EpisodeDetector(DetectionConfig(startDelayMs = 0L, maxNudgesPerNight = Int.MAX_VALUE), 0L)
+        var t = 0L
+        repeat(200) {
+            assertTrue(d.feedAll(t, t + 4_000, t + 8_000) is EpisodeDecision.Nudge)
+            t += 100_000
+        }
+        assertEquals(0, d.suppressedMax)
+    }
+
+    @Test fun firstNudgeIsLevel2() {
+        assertEquals(2, EpisodeDetector.FIRST_LEVEL)
     }
 }

@@ -34,6 +34,27 @@ class PatternsTest {
         assertEquals(0, Patterns.scaleAmplitude(0, 5f))
     }
 
+    @Test fun level3IsFivePulsesOfAboutThreeSeconds() {
+        val p = Patterns.forLevel(3)
+        // 0 ms lead-in, then 5 x 400 ms on with 4 x 200 ms gaps.
+        assertArrayEquals(longArrayOf(0, 400, 200, 400, 200, 400, 200, 400, 200, 400), p.timings)
+        assertArrayEquals(intArrayOf(0, 255, 0, 255, 0, 255, 0, 255, 0, 255), p.amplitudes)
+        assertTrue(Patterns.totalMs(p) in 2_500L..3_500L)
+    }
+
+    @Test fun level3IsLongerThanLevel2AndLevel1() {
+        val t1 = Patterns.totalMs(Patterns.forLevel(1))
+        val t2 = Patterns.totalMs(Patterns.forLevel(2))
+        val t3 = Patterns.totalMs(Patterns.forLevel(3))
+        assertTrue(t1 < t2 && t2 < t3)
+    }
+
+    @Test fun level1PatternStillAvailable() {
+        val p = Patterns.forLevel(1)
+        assertArrayEquals(longArrayOf(0, 250, 300, 250), p.timings)
+        assertArrayEquals(intArrayOf(0, 120, 0, 120), p.amplitudes)
+    }
+
     @Test fun durationsAndGapsUnchanged() {
         for (level in 1..3) {
             val base = Patterns.forLevel(level)

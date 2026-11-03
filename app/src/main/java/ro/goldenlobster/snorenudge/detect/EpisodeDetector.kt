@@ -58,10 +58,15 @@ class EpisodeDetector(private val config: DetectionConfig, private val sessionSt
 
         val level = if (lastLevel > 0 && lastNudgeMs != Long.MIN_VALUE &&
             nowMs - lastNudgeMs <= config.escalationWindowMs
-        ) minOf(lastLevel + 1, 3) else 1
+        ) minOf(lastLevel + 1, 3) else FIRST_LEVEL
         lastLevel = level
         lastNudgeMs = nowMs
         nudgeCount++
         return EpisodeDecision.Nudge(level)
+    }
+
+    companion object {
+        /** Nudges start at level 2 and escalate 2 -> 3 -> 3 (level 1 is reserved for the low-battery buzz). */
+        const val FIRST_LEVEL = 2
     }
 }

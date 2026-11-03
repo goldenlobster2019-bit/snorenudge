@@ -1,21 +1,38 @@
 package ro.goldenlobster.snorenudge.ui.history
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BatteryAlert
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Sensors
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -33,7 +50,14 @@ import ro.goldenlobster.snorenudge.data.Aggregations
 import ro.goldenlobster.snorenudge.data.AppDatabase
 import ro.goldenlobster.snorenudge.data.Nudge
 import ro.goldenlobster.snorenudge.data.SnoreEventEntity
+import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
+import ro.goldenlobster.snorenudge.ui.components.MutedText
+import ro.goldenlobster.snorenudge.ui.components.Pill
+import ro.goldenlobster.snorenudge.ui.components.SectionLabel
+import ro.goldenlobster.snorenudge.ui.components.StatTile
+import ro.goldenlobster.snorenudge.ui.components.SurfaceCard
 import ro.goldenlobster.snorenudge.ui.theme.ChartColors
+import ro.goldenlobster.snorenudge.ui.theme.Palette
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -67,34 +91,61 @@ fun NightDetailScreen(sessionId: Long) {
         ) {
             val s = session
             if (s == null) {
-                item { Text("Night not found", style = MaterialTheme.typography.bodyMedium) }
+                item { MutedText("Night not found") }
                 return@ScalingLazyColumn
             }
             val end = s.endedAt ?: s.startedAt
-            item { Text(dateLabel(s.startedAt) + if (s.testMode) "  TEST" else "", style = MaterialTheme.typography.titleSmall) }
             item {
-                Text(
-                    "${timeLabel(s.startedAt)} - ${timeLabel(end)}, ${durationLabel(end - s.startedAt)} h",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            item {
-                Text(
-                    endReasonLabel(s.endReason),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SurfaceCard {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        GlyphIcon(Icons.Rounded.Bedtime, Palette.Teal, size = 18.dp)
+                        Text(dateLabel(s.startedAt), style = MaterialTheme.typography.titleSmall, color = Palette.TextPrimary)
+                        Text(
+                            "${timeLabel(s.startedAt)} - ${timeLabel(end)}, ${durationLabel(end - s.startedAt)} h",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.TextSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Pill(endReasonLabel(s.endReason), icon = endReasonIcon(s.endReason))
+                            if (s.testMode) {
+                                Pill("TEST", icon = Icons.Rounded.Science, containerColor = Palette.AmberDeep, contentColor = Palette.Amber)
+                            }
+                        }
+                    }
+                }
             }
             val l1 = nudges.count { it.level == 1 }
             val l2 = nudges.count { it.level == 2 }
             val l3 = nudges.count { it.level >= 3 }
-            item { StatRow("Snore events", s.snoreEvents.toString()) }
-            item { StatRow("Snoring minutes", s.snoringMinutes.toString()) }
-            item { StatRow("Nudges", s.nudges.toString()) }
-            item { StatRow("L1 / L2 / L3", "$l1 / $l2 / $l3") }
-            item { StatRow("Noise floor", String.format(Locale.US, "%.0f dBFS", s.avgNoiseFloorDb)) }
-            item { StatRow("Gate open", String.format(Locale.US, "%.0f%%", s.gateOpenRatio * 100f)) }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.88f)) {
+                    StatTile(Icons.Rounded.GraphicEq, s.snoreEvents.toString(), "snore events", Modifier.weight(1f))
+                    StatTile(Icons.Rounded.Timer, "${s.snoringMinutes} min", "snoring", Modifier.weight(1f))
+                }
+            }
+            item {
+                StatTile(
+                    Icons.Rounded.Vibration, s.nudges.toString(), "nudges   L1 $l1 / L2 $l2 / L3 $l3",
+                    Modifier.fillMaxWidth(0.88f), tint = Palette.Amber,
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.88f)) {
+                    StatTile(
+                        Icons.Rounded.Mic, String.format(Locale.US, "%.0f dB", s.avgNoiseFloorDb), "noise floor",
+                        Modifier.weight(1f),
+                    )
+                    StatTile(
+                        Icons.Rounded.Sensors, String.format(Locale.US, "%.0f%%", s.gateOpenRatio * 100f), "gate open",
+                        Modifier.weight(1f),
+                    )
+                }
+            }
 
             val delayMin = if (s.testMode) 0 else Aggregations.startDelayMinutes(s.settingsSummary) ?: 0
             item {
@@ -107,21 +158,22 @@ fun NightDetailScreen(sessionId: Long) {
                 )
             }
 
-            item { SectionTitle("Nudges") }
+            item { SectionLabel(Icons.Rounded.Vibration, "Nudges", Palette.Amber) }
             if (nudges.isEmpty()) {
-                item { Muted("None") }
+                item { MutedText("None") }
             } else {
                 nudges.forEachIndexed { i, n ->
-                    item(key = "n$i") { StatRow(timeLabel(n.ts), "Level ${n.level}") }
+                    item(key = "n$i") { NudgeRow(timeLabel(n.ts), n.level) }
                 }
             }
-            item { SectionTitle("Busiest periods") }
+            item { SectionLabel(Icons.Rounded.GraphicEq, "Busiest periods", Palette.Teal) }
             if (busiest.isEmpty()) {
-                item { Muted("No snoring") }
+                item { MutedText("No snoring") }
             } else {
                 busiest.forEachIndexed { i, b ->
                     item(key = "b$i") {
-                        StatRow(
+                        ListRow(
+                            Icons.Rounded.GraphicEq, Palette.Teal,
                             "${timeLabel(s.startedAt + b.startOffsetMs)}-${timeLabel(s.startedAt + b.endOffsetMs)}",
                             "${b.events} snores",
                         )
@@ -132,14 +184,30 @@ fun NightDetailScreen(sessionId: Long) {
     }
 }
 
-@Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+private fun endReasonIcon(reason: String?): ImageVector = when (reason) {
+    "user", "stopped" -> Icons.Rounded.Stop
+    "stopAt" -> Icons.Rounded.Alarm
+    "maxSession" -> Icons.Rounded.Timer
+    "lowBattery" -> Icons.Rounded.BatteryAlert
+    "interrupted" -> Icons.Rounded.Warning
+    else -> Icons.Rounded.PlayArrow
 }
 
 @Composable
-private fun Muted(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun NudgeRow(time: String, level: Int) =
+    ListRow(Icons.Rounded.Vibration, ChartColors.nudge(level), time, "Level $level")
+
+@Composable
+private fun ListRow(icon: ImageVector, tint: androidx.compose.ui.graphics.Color, left: String, right: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(0.78f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        GlyphIcon(icon, tint, size = 16.dp)
+        Text(left, style = MaterialTheme.typography.bodyMedium, color = Palette.TextPrimary, modifier = Modifier.weight(1f), maxLines = 1)
+        Text(right, style = MaterialTheme.typography.bodySmall, color = Palette.TextSecondary, maxLines = 1)
+    }
 }
 
 @Composable
@@ -159,60 +227,83 @@ private fun TimelineCard(
     val measurer = rememberTextMeasurer()
     val labelStyle = TextStyle(fontSize = 10.sp, color = ChartColors.Label)
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth(0.84f)
-            .clip(RoundedCornerShape(20.dp))
-            .background(ChartColors.Card)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(110.dp)) {
-            val w = size.width
-            val markerH = 14.dp.toPx()
-            val labelH = 16.dp.toPx()
-            val plotTop = markerH
-            val plotBottom = size.height - labelH
-            val plotH = plotBottom - plotTop
+    SurfaceCard(fraction = 0.9f) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Canvas(modifier = Modifier.fillMaxWidth().height(116.dp)) {
+                val w = size.width
+                val markerH = 14.dp.toPx()
+                val labelH = 16.dp.toPx()
+                val plotTop = markerH
+                val plotBottom = size.height - labelH
+                val plotH = plotBottom - plotTop
 
-            if (delayMs > 0L) {
-                val dw = (delayMs.toFloat() / duration * w).coerceAtMost(w)
-                drawRect(ChartColors.DelayShade, Offset(0f, plotTop), Size(dw, plotH))
-            }
-            // Bars: one per 10-minute bucket.
-            for (b in buckets) {
-                if (b.events == 0) continue
-                val x0 = b.startOffsetMs.toFloat() / duration * w
-                val x1 = (b.endOffsetMs.coerceAtMost(duration)).toFloat() / duration * w
-                val bw = ((x1 - x0) * 0.8f).coerceAtLeast(2f)
-                val h = (b.events.toFloat() / maxEvents * plotH).coerceAtLeast(3f)
-                drawRect(ChartColors.Snoring, Offset(x0 + (x1 - x0 - bw) / 2f, plotBottom - h), Size(bw, h))
-            }
-            drawRect(ChartColors.Axis, Offset(0f, plotBottom), Size(w, 1.dp.toPx()))
-            // Hour ticks and labels.
-            ticks.forEachIndexed { i, off ->
-                val x = off.toFloat() / duration * w
-                drawRect(ChartColors.Axis, Offset(x, plotBottom), Size(1.dp.toPx(), 4.dp.toPx()))
-                if (i % labelEvery == 0) {
-                    val hour = Instant.ofEpochMilli(start + off).atZone(zone).hour
-                    val text = String.format(Locale.US, "%02d", hour)
-                    val m = measurer.measure(text, labelStyle)
-                    val tx = (x - m.size.width / 2f).coerceIn(0f, w - m.size.width)
-                    drawText(m, topLeft = Offset(tx, plotBottom + 5.dp.toPx()))
+                if (delayMs > 0L) {
+                    val dw = (delayMs.toFloat() / duration * w).coerceAtMost(w)
+                    drawRoundRect(
+                        ChartColors.DelayShade, Offset(0f, plotTop), Size(dw, plotH),
+                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+                    )
+                }
+                // Subtle horizontal grid.
+                for (f in listOf(0.5f, 1f)) {
+                    val y = plotBottom - f * plotH
+                    drawRect(ChartColors.Grid, Offset(0f, y), Size(w, 1.dp.toPx()))
+                }
+                // Hour grid lines, ticks and labels.
+                ticks.forEachIndexed { i, off ->
+                    val x = off.toFloat() / duration * w
+                    drawRect(ChartColors.Grid, Offset(x, plotTop), Size(1.dp.toPx(), plotH))
+                    if (i % labelEvery == 0) {
+                        val hour = Instant.ofEpochMilli(start + off).atZone(zone).hour
+                        val m = measurer.measure(String.format(Locale.US, "%02d", hour), labelStyle)
+                        val tx = (x - m.size.width / 2f).coerceIn(0f, w - m.size.width)
+                        drawText(m, topLeft = Offset(tx, plotBottom + 4.dp.toPx()))
+                    }
+                }
+                // Rounded bars: one per 10-minute bucket.
+                for (b in buckets) {
+                    if (b.events == 0) continue
+                    val x0 = b.startOffsetMs.toFloat() / duration * w
+                    val x1 = (b.endOffsetMs.coerceAtMost(duration)).toFloat() / duration * w
+                    val bw = ((x1 - x0) * 0.78f).coerceAtLeast(3f)
+                    val h = (b.events.toFloat() / maxEvents * plotH).coerceAtLeast(4.dp.toPx())
+                    drawRoundRect(
+                        ChartColors.Snoring,
+                        Offset(x0 + (x1 - x0 - bw) / 2f, plotBottom - h),
+                        Size(bw, h),
+                        cornerRadius = CornerRadius(minOf(bw / 2f, 3.dp.toPx())),
+                    )
+                }
+                drawRect(ChartColors.Axis, Offset(0f, plotBottom), Size(w, 1.dp.toPx()))
+                // Amber nudge markers along the top strip.
+                for (n in nudges) {
+                    val x = ((n.ts - start).toFloat() / duration * w).coerceIn(4.dp.toPx(), w - 4.dp.toPx())
+                    drawCircle(ChartColors.nudge(n.level), radius = 3.dp.toPx(), center = Offset(x, markerH / 2f))
                 }
             }
-            // Nudge markers along the top strip.
-            for (n in nudges) {
-                val x = ((n.ts - start).toFloat() / duration * w).coerceIn(4.dp.toPx(), w - 4.dp.toPx())
-                drawCircle(ChartColors.nudge(n.level), radius = 3.5.dp.toPx(), center = Offset(x, markerH / 2f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Legend(Palette.Teal, "snores")
+                Legend(Palette.Amber, "nudges")
+                if (delayMs > 0L) Legend(ChartColors.DelayShade, "delay")
             }
         }
-        Text(
-            "Bars: snores per 10 min. Dots: nudges (light to dark = L1 to L3). Shaded: start delay.",
-            style = MaterialTheme.typography.bodySmall,
-            color = ChartColors.Label,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+    }
+}
+
+@Composable
+private fun Legend(color: androidx.compose.ui.graphics.Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        androidx.compose.foundation.layout.Box(
+            Modifier
+                .padding(top = 1.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color),
         )
+        Text(text, style = MaterialTheme.typography.labelSmall, color = ChartColors.Label)
     }
 }

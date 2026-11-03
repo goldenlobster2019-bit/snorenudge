@@ -6,6 +6,7 @@ import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.DimensionBuilders.dp
 import androidx.wear.protolayout.DimensionBuilders.expand
 import androidx.wear.protolayout.DimensionBuilders.sp
+import androidx.wear.protolayout.DimensionBuilders.wrap
 import androidx.wear.protolayout.LayoutElementBuilders
 import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
@@ -15,6 +16,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 import ro.goldenlobster.snorenudge.MainActivity
+import ro.goldenlobster.snorenudge.R
 import ro.goldenlobster.snorenudge.data.AppDatabase
 import ro.goldenlobster.snorenudge.data.NightSession
 import ro.goldenlobster.snorenudge.service.MonitorState
@@ -45,9 +47,23 @@ class SnoreTileService : TileService() {
         requestParams: RequestBuilders.ResourcesRequest,
     ): ListenableFuture<ResourceBuilders.Resources> =
         CallbackToFutureAdapter.getFuture { completer ->
-            completer.set(ResourceBuilders.Resources.Builder().setVersion(RES_VERSION).build())
+            completer.set(
+                ResourceBuilders.Resources.Builder()
+                    .setVersion(RES_VERSION)
+                    .addIdToImageMapping(ID_MOON, drawableRes(R.drawable.ic_tile_moon))
+                    .addIdToImageMapping(ID_PLAY, drawableRes(R.drawable.ic_tile_play))
+                    .addIdToImageMapping(ID_STOP, drawableRes(R.drawable.ic_tile_stop))
+                    .build(),
+            )
             "snore-tile-res"
         }
+
+    private fun drawableRes(resId: Int): ResourceBuilders.ImageResource =
+        ResourceBuilders.ImageResource.Builder()
+            .setAndroidResourceByResId(
+                ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(resId).build(),
+            )
+            .build()
 
     override fun onDestroy() {
         executor.shutdown()
@@ -71,12 +87,14 @@ class SnoreTileService : TileService() {
 
         val column = LayoutElementBuilders.Column.Builder()
             .setWidth(expand())
-            .setHeight(expand())
+            .setHeight(wrap())
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+            .addContent(header())
+            .addContent(spacer(6f))
             .addContent(text(lines[0], 18f, TEXT_PRIMARY, bold = true))
-            .addContent(spacer(4f))
-            .addContent(text(lines[1], 13f, TEXT_MUTED, bold = false))
-            .addContent(spacer(14f))
+            .addContent(spacer(2f))
+            .addContent(text(lines[1], 12f, TEXT_MUTED, bold = false))
+            .addContent(spacer(12f))
             .addContent(button(if (snap.running) "Stop" else "Start", snap.running))
             .build()
 
@@ -115,6 +133,22 @@ class SnoreTileService : TileService() {
             )
             .build()
 
+    /** Moon icon with the app name. */
+    private fun header(): LayoutElementBuilders.Row =
+        LayoutElementBuilders.Row.Builder()
+            .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+            .addContent(icon(ID_MOON, 16f))
+            .addContent(LayoutElementBuilders.Spacer.Builder().setWidth(dp(5f)).build())
+            .addContent(text("SnoreNudge", 12f, TEXT_MUTED, bold = false))
+            .build()
+
+    private fun icon(id: String, size: Float): LayoutElementBuilders.Image =
+        LayoutElementBuilders.Image.Builder()
+            .setResourceId(id)
+            .setWidth(dp(size))
+            .setHeight(dp(size))
+            .build()
+
     private fun spacer(h: Float): LayoutElementBuilders.Spacer =
         LayoutElementBuilders.Spacer.Builder().setHeight(dp(h)).build()
 
@@ -137,7 +171,7 @@ class SnoreTileService : TileService() {
             .setBackground(
                 ModifiersBuilders.Background.Builder()
                     .setColor(argb(if (stop) BTN_STOP else BTN_START))
-                    .setCorner(ModifiersBuilders.Corner.Builder().setRadius(dp(26f)).build())
+                    .setCorner(ModifiersBuilders.Corner.Builder().setRadius(dp(25f)).build())
                     .build(),
             )
             .setClickable(
@@ -149,19 +183,31 @@ class SnoreTileService : TileService() {
             .build()
         return LayoutElementBuilders.Box.Builder()
             .setWidth(dp(150f))
-            .setHeight(dp(52f))
+            .setHeight(dp(50f))
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
             .setModifiers(mods)
-            .addContent(text(label, 20f, if (stop) 0xFFF2CFCF.toInt() else 0xFF07201A.toInt(), bold = true))
+            .addContent(
+                LayoutElementBuilders.Row.Builder()
+                    .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+                    .addContent(icon(if (stop) ID_STOP else ID_PLAY, 22f))
+                    .addContent(LayoutElementBuilders.Spacer.Builder().setWidth(dp(6f)).build())
+                    .addContent(text(label, 18f, if (stop) BTN_STOP_TEXT else BTN_START_TEXT, bold = true))
+                    .build(),
+            )
             .build()
     }
 
     private companion object {
-        const val RES_VERSION = "1"
-        val TEXT_PRIMARY = 0xFFD0D4E2.toInt()
-        val TEXT_MUTED = 0xFF9AA0B5.toInt()
-        val BTN_START = 0xFF8FC7B8.toInt()
-        val BTN_STOP = 0xFF5A2323.toInt()
+        const val RES_VERSION = "2"
+        const val ID_MOON = "moon"
+        const val ID_PLAY = "play"
+        const val ID_STOP = "stop_icon"
+        val TEXT_PRIMARY = 0xFFE6EAF0.toInt()
+        val TEXT_MUTED = 0xFF9AA4B2.toInt()
+        val BTN_START = 0xFF4FD1C5.toInt()
+        val BTN_START_TEXT = 0xFF06201D.toInt()
+        val BTN_STOP = 0xFF3A1F1F.toInt()
+        val BTN_STOP_TEXT = 0xFFE8908A.toInt()
     }
 }
