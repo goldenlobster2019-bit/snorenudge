@@ -48,11 +48,14 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import ro.goldenlobster.snorenudge.data.Aggregations
 import ro.goldenlobster.snorenudge.data.AppDatabase
+import ro.goldenlobster.snorenudge.data.NightSession
 import ro.goldenlobster.snorenudge.data.Nudge
 import ro.goldenlobster.snorenudge.data.SnoreEventEntity
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.Pill
+import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.components.rememberHeaderListState
 import ro.goldenlobster.snorenudge.ui.components.SectionLabel
 import ro.goldenlobster.snorenudge.ui.components.StatTile
 import ro.goldenlobster.snorenudge.ui.components.SurfaceCard
@@ -72,7 +75,19 @@ fun NightDetailScreen(sessionId: Long) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val nudges by remember(sessionId) { db.nudges().observeForSession(sessionId) }
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    val listState = rememberScalingLazyListState()
+    NightDetailContent(session = session, events = events, nudges = nudges)
+}
+
+/** Stateless Night detail content: plain data in. Used by [NightDetailScreen] and the screenshot tests. */
+@Composable
+internal fun NightDetailContent(
+    session: NightSession?,
+    events: List<SnoreEventEntity>,
+    nudges: List<Nudge>,
+    /** Initially centered list item (same default as a plain ScalingLazyColumn state). */
+    initialCenterItemIndex: Int = 0,
+) {
+    val listState = rememberHeaderListState(initialCenterItemIndex)
     val busiest = remember(session, events) {
         session?.let { s ->
             Aggregations.busiest(
@@ -88,6 +103,7 @@ fun NightDetailScreen(sessionId: Long) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = null,
         ) {
             val s = session
             if (s == null) {
@@ -96,26 +112,17 @@ fun NightDetailScreen(sessionId: Long) {
             }
             val end = s.endedAt ?: s.startedAt
             item {
-                SurfaceCard {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
-                    ) {
-                        GlyphIcon(Icons.Rounded.Bedtime, Palette.Teal, size = 18.dp)
-                        Text(dateLabel(s.startedAt), style = MaterialTheme.typography.titleSmall, color = Palette.TextPrimary)
-                        Text(
-                            "${timeLabel(s.startedAt)} - ${timeLabel(end)}, ${durationLabel(end - s.startedAt)} h",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Palette.TextSecondary,
-                            textAlign = TextAlign.Center,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Pill(endReasonLabel(s.endReason), icon = endReasonIcon(s.endReason))
-                            if (s.testMode) {
-                                Pill("TEST", icon = Icons.Rounded.Science, containerColor = Palette.AmberDeep, contentColor = Palette.Amber)
-                            }
-                        }
+                ScreenHeader(
+                    Icons.Rounded.Bedtime,
+                    dateLabel(s.startedAt),
+                    "${timeLabel(s.startedAt)} - ${timeLabel(end)}, ${durationLabel(end - s.startedAt)} h",
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Pill(endReasonLabel(s.endReason), icon = endReasonIcon(s.endReason))
+                    if (s.testMode) {
+                        Pill("TEST", icon = Icons.Rounded.Science, containerColor = Palette.AmberDeep, contentColor = Palette.Amber)
                     }
                 }
             }
@@ -124,15 +131,19 @@ fun NightDetailScreen(sessionId: Long) {
             val l3 = nudges.count { it.level >= 3 }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.88f)) {
-                    StatTile(Icons.Rounded.GraphicEq, s.snoreEvents.toString(), "snore events", Modifier.weight(1f))
+                    StatTile(Icons.Rounded.GraphicEq, s.snoreEvents.toString(), "snores", Modifier.weight(1f))
                     StatTile(Icons.Rounded.Timer, "${s.snoringMinutes} min", "snoring", Modifier.weight(1f))
                 }
             }
             item {
-                StatTile(
-                    Icons.Rounded.Vibration, s.nudges.toString(), "nudges   L1 $l1 / L2 $l2 / L3 $l3",
-                    Modifier.fillMaxWidth(0.88f), tint = Palette.Amber,
-                )
+                StatTile(Icons.Rounded.Vibration, s.nudges.toString(), "nudges", Modifier.fillMaxWidth(0.88f), tint = Palette.Amber)
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(1 to l1, 2 to l2, 3 to l3).forEach { (lvl, c) ->
+                        Pill("L$lvl $c", containerColor = Palette.SurfaceHigh, contentColor = ChartColors.nudge(lvl))
+                    }
+                }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.88f)) {
@@ -174,7 +185,7 @@ fun NightDetailScreen(sessionId: Long) {
                     item(key = "b$i") {
                         ListRow(
                             Icons.Rounded.GraphicEq, Palette.Teal,
-                            "${timeLabel(s.startedAt + b.startOffsetMs)}-${timeLabel(s.startedAt + b.endOffsetMs)}",
+                            timeLabel(s.startedAt + b.startOffsetMs),
                             "${b.events} snores",
                         )
                     }
@@ -281,14 +292,16 @@ private fun TimelineCard(
                     drawCircle(ChartColors.nudge(n.level), radius = 3.dp.toPx(), center = Offset(x, markerH / 2f))
                 }
             }
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Legend(Palette.Teal, "snores")
-                Legend(Palette.Amber, "nudges")
-                if (delayMs > 0L) Legend(ChartColors.DelayShade, "delay")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Legend(Palette.Teal, "snores")
+                    Legend(Palette.Amber, "nudges")
+                }
+                if (delayMs > 0L) Legend(ChartColors.DelayShade, "start delay")
             }
         }
     }

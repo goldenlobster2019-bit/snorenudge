@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.roborazzi)
 }
 
 // Release signing is optional: read from ~/.gradle/gradle.properties only if all keys are present.
@@ -73,6 +74,19 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs merged resources/manifest for the screenshot tests.
+            isIncludeAndroidResources = true
+            // Screenshot tests need Robolectric's android-all jar (downloaded once into ~/.m2) and take a while,
+            // so they only run for the Roborazzi tasks (tools/render-screens.sh), not in plain testDebugUnitTest.
+            val screenshotRun = gradle.startParameter.taskNames.any { it.contains("roborazzi", ignoreCase = true) }
+            all { test ->
+                if (!screenshotRun) test.filter.excludeTestsMatching("ro.goldenlobster.snorenudge.screenshots.*")
+            }
+        }
+    }
 }
 
 ksp {
@@ -107,4 +121,11 @@ dependencies {
     implementation(libs.androidx.concurrent.futures)
 
     testImplementation(libs.junit)
+    // JVM screenshot tests (Roborazzi + Robolectric native graphics), see tools/render-screens.sh.
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.test.ext.junit)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

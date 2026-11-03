@@ -41,6 +41,7 @@ import ro.goldenlobster.snorenudge.haptics.VibrationController
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.components.rememberHeaderListState
 import ro.goldenlobster.snorenudge.ui.theme.Palette
 
 private class SettingSpec(val key: String, val title: String, val icon: ImageVector)
@@ -71,7 +72,23 @@ fun SettingsScreen(onPick: (String) -> Unit) {
     val repo = remember { SettingsRepository(ctx) }
     val settings by repo.settings.collectAsState(initial = AppSettings())
     val scope = rememberCoroutineScope()
-    val listState = rememberScalingLazyListState()
+    SettingsContent(
+        settings = settings,
+        onPick = onPick,
+        onTestVibration = { VibrationController(ctx, settings.strength).vibrate(2) },
+        onReset = { scope.launch { repo.reset() } },
+    )
+}
+
+/** Stateless Settings content: plain data in, callbacks out. Used by [SettingsScreen] and the screenshot tests. */
+@Composable
+internal fun SettingsContent(
+    settings: AppSettings,
+    onPick: (String) -> Unit,
+    onTestVibration: () -> Unit,
+    onReset: () -> Unit,
+) {
+    val listState = rememberHeaderListState()
 
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
@@ -80,6 +97,7 @@ fun SettingsScreen(onPick: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = null,
         ) {
             item { ScreenHeader(Icons.Rounded.Settings, "Settings") }
             item { MutedText("Changes apply on next start") }
@@ -96,7 +114,7 @@ fun SettingsScreen(onPick: (String) -> Unit) {
             }
             item {
                 FilledTonalButton(
-                    onClick = { VibrationController(ctx, settings.strength).vibrate(2) },
+                    onClick = onTestVibration,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                     icon = { GlyphIcon(Icons.Rounded.Vibration, Palette.Amber, size = 22.dp) },
                     label = { Text("Test vibration") },
@@ -105,7 +123,7 @@ fun SettingsScreen(onPick: (String) -> Unit) {
             }
             item {
                 ChildButton(
-                    onClick = { scope.launch { repo.reset() } },
+                    onClick = onReset,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     colors = ButtonDefaults.childButtonColors(contentColor = Palette.TextSecondary),
                     icon = { GlyphIcon(Icons.Rounded.RestartAlt, Palette.TextSecondary, size = 20.dp) },
@@ -148,6 +166,20 @@ fun SettingPickerScreen(key: String, onDone: () -> Unit) {
     val repo = remember { SettingsRepository(ctx) }
     val settings by repo.settings.collectAsState(initial = AppSettings())
     val scope = rememberCoroutineScope()
+    SettingPickerContent(
+        key = key,
+        settings = settings,
+        onSelect = { apply -> scope.launch { repo.update(apply); onDone() } },
+    )
+}
+
+/** Stateless picker content; [onSelect] receives the transform to apply to the settings. */
+@Composable
+internal fun SettingPickerContent(
+    key: String,
+    settings: AppSettings,
+    onSelect: ((AppSettings) -> AppSettings) -> Unit,
+) {
     val listState = rememberScalingLazyListState()
     val (title, options) = optionsFor(key, settings)
     val selectedIndex = options.indexOfFirst { it.selected }
@@ -166,7 +198,7 @@ fun SettingPickerScreen(key: String, onDone: () -> Unit) {
                 item(key = "$key-$i") {
                     RadioButton(
                         selected = o.selected,
-                        onSelect = { scope.launch { repo.update(o.apply); onDone() } },
+                        onSelect = { onSelect(o.apply) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         label = { Text(o.label) },
                     )

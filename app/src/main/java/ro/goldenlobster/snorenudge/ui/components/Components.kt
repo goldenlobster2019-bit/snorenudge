@@ -24,7 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.ButtonColors
 import androidx.wear.compose.material3.ButtonDefaults
@@ -40,17 +43,45 @@ fun GlyphIcon(icon: ImageVector, tint: Color, modifier: Modifier = Modifier, siz
     Icon(imageVector = icon, contentDescription = null, modifier = modifier.size(size), tint = tint)
 }
 
-/** Screen title: small icon above a short label, centered. */
+/**
+ * List state for screens that start with a [ScreenHeader]: the header is the initial center item, nudged
+ * upward so it clears the TimeText and the content below stays visible. Other indexes are centered as is.
+ */
 @Composable
-fun ScreenHeader(icon: ImageVector, title: String, tint: Color = Palette.Teal) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 2.dp)) {
+fun rememberHeaderListState(initialCenterItemIndex: Int = 0): ScalingLazyListState {
+    val offsetPx = with(LocalDensity.current) { HEADER_LIFT.roundToPx() }
+    return rememberScalingLazyListState(
+        initialCenterItemIndex = initialCenterItemIndex,
+        initialCenterItemScrollOffset = if (initialCenterItemIndex == 0) offsetPx else 0,
+    )
+}
+
+private val HEADER_LIFT = 62.dp
+
+/** Screen header: icon above title (titleMedium) with an optional secondary subtitle, centered. */
+@Composable
+fun ScreenHeader(icon: ImageVector, title: String, subtitle: String? = null, tint: Color = Palette.Teal) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth(0.8f).padding(bottom = 2.dp),
+    ) {
         GlyphIcon(icon, tint, size = 20.dp)
         Text(
             title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
+            maxLines = 2,
         )
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.TextSecondary,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+            )
+        }
     }
 }
 
@@ -121,12 +152,12 @@ fun Pill(
     }
 }
 
-/** Value tile: icon, big value, small caption. */
+/** Value tile: icon, value (with unit) and small label. */
 @Composable
 fun StatTile(
     icon: ImageVector,
     value: String,
-    caption: String,
+    label: String,
     modifier: Modifier = Modifier,
     tint: Color = Palette.Teal,
 ) {
@@ -134,7 +165,7 @@ fun StatTile(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Palette.Surface)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
+            .padding(horizontal = 3.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
@@ -147,7 +178,7 @@ fun StatTile(
             textAlign = TextAlign.Center,
         )
         Text(
-            caption,
+            label,
             style = MaterialTheme.typography.labelSmall,
             color = Palette.TextSecondary,
             maxLines = 1,

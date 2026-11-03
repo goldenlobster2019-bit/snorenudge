@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,6 +69,7 @@ import androidx.wear.compose.material3.Text
 import kotlinx.coroutines.delay
 import ro.goldenlobster.snorenudge.data.AppDatabase
 import ro.goldenlobster.snorenudge.data.NightSession
+import ro.goldenlobster.snorenudge.service.MonitorSnapshot
 import ro.goldenlobster.snorenudge.service.MonitorState
 import ro.goldenlobster.snorenudge.ui.components.CenteredTonalButton
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
@@ -97,10 +100,47 @@ fun HomeScreen(
         }
     }
     val battery = rememberBattery()
+    HomeContent(
+        snap = snap,
+        now = now,
+        battery = battery,
+        batteryExempt = batteryExempt,
+        lastNight = lastNight,
+        onStart = onStart,
+        onStop = onStop,
+        onLiveTest = onLiveTest,
+        onHistory = onHistory,
+        onSettings = onSettings,
+        onLastNight = onLastNight,
+        onTestModeOff = { MonitorState.setTestMode(false) },
+    )
+}
+
+/** Stateless Home content: plain data in, callbacks out. Used by [HomeScreen] and by the screenshot tests. */
+@Composable
+internal fun HomeContent(
+    snap: MonitorSnapshot,
+    now: Long,
+    battery: BatteryInfo,
+    batteryExempt: Boolean,
+    lastNight: NightSession?,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onLiveTest: () -> Unit,
+    onHistory: () -> Unit,
+    onSettings: () -> Unit,
+    onLastNight: (Long) -> Unit,
+    onTestModeOff: () -> Unit,
+    /** Initially centered list item; defaults to the hero (Start button / running ring). */
+    initialCenterItemIndex: Int? = null,
+) {
     // Main element (running ring / idle Start button) sits at a fixed index in each mode.
     val heroIndex = if (snap.running) RUNNING_HERO_INDEX else IDLE_START_INDEX
     key(snap.running) {
-    val listState = rememberScalingLazyListState(initialCenterItemIndex = heroIndex, initialCenterItemScrollOffset = 0)
+    val listState = rememberScalingLazyListState(
+        initialCenterItemIndex = initialCenterItemIndex ?: heroIndex,
+        initialCenterItemScrollOffset = 0,
+    )
 
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
@@ -126,6 +166,7 @@ fun HomeScreen(
                     batteryExempt = batteryExempt,
                     lastNight = lastNight,
                     onStart = onStart,
+                    onTestModeOff = onTestModeOff,
                     onLastNight = onLastNight,
                     onHistory = onHistory,
                     onLiveTest = onLiveTest,
@@ -151,6 +192,7 @@ private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.idleItems
     batteryExempt: Boolean,
     lastNight: NightSession?,
     onStart: () -> Unit,
+    onTestModeOff: () -> Unit,
     onLastNight: (Long) -> Unit,
     onHistory: () -> Unit,
     onLiveTest: () -> Unit,
@@ -169,7 +211,7 @@ private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.idleItems
     if (testMode) {
         item {
             CenteredTonalButton(
-                onClick = { MonitorState.setTestMode(false) },
+                onClick = onTestModeOff,
                 icon = Icons.Rounded.Science,
                 iconTint = Palette.Amber,
                 label = "Test mode on",
@@ -243,30 +285,6 @@ private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.runningIt
     onStop: () -> Unit,
 ) {
     item { RunningHero(snap, now) }
-    item {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CounterLabel(Icons.Rounded.GraphicEq, Palette.Teal, snap.snoreEventCount.toString(), "snores")
-            CounterLabel(Icons.Rounded.Vibration, Palette.Amber, snap.nudgeCount.toString(), "nudges")
-        }
-    }
-    if (snap.startDelayRemainingMs > 0L) {
-        item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                GlyphIcon(Icons.Rounded.Timer, Palette.TextSecondary, size = 14.dp)
-                Text(
-                    "Nudges active in " + formatMinSec(snap.startDelayRemainingMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Palette.TextSecondary,
-                )
-            }
-        }
-    }
     if (snap.lastNudgeAt > 0L) {
         item { MutedText("Last nudge ${hhmm(snap.lastNudgeAt)}") }
     }
@@ -298,30 +316,31 @@ private fun androidx.wear.compose.foundation.lazy.ScalingLazyListScope.runningIt
 
 @Composable
 private fun StartButton(onStart: () -> Unit) {
-    // Outer hairline ring, inner solid teal disc.
+    // Night-friendly tonal button: dark teal fill, 2 dp teal ring, teal icon and label (no bright disc).
     Box(
         modifier = Modifier
             .size(124.dp)
-            .border(1.5.dp, Palette.Teal.copy(alpha = 0.28f), CircleShape),
+            .border(1.5.dp, Palette.Teal.copy(alpha = 0.2f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
                 .size(108.dp)
                 .clip(CircleShape)
-                .background(Palette.Teal)
+                .background(StartFill)
+                .border(2.dp, Palette.Teal, CircleShape)
                 .clickable(role = Role.Button, onClickLabel = "Start monitoring", onClick = onStart),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                GlyphIcon(Icons.Rounded.PlayArrow, Color0620, size = 44.dp)
-                Text("Start", style = MaterialTheme.typography.titleMedium, color = Color0620)
+                GlyphIcon(Icons.Rounded.PlayArrow, Palette.Teal, size = 44.dp)
+                Text("Start", style = MaterialTheme.typography.titleMedium, color = Palette.Teal)
             }
         }
     }
 }
 
-private val Color0620 = androidx.compose.ui.graphics.Color(0xFF06201D)
+private val StartFill = androidx.compose.ui.graphics.Color(0xFF12302E)
 
 @Composable
 private fun RunningHero(snap: ro.goldenlobster.snorenudge.service.MonitorSnapshot, now: Long) {
@@ -368,17 +387,31 @@ private fun RunningHero(snap: ro.goldenlobster.snorenudge.service.MonitorSnapsho
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun CounterLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, value: String, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        GlyphIcon(icon, tint, size = 18.dp)
-        Column {
-            Text(value, style = MaterialTheme.typography.titleSmall, color = Palette.TextPrimary)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                GlyphIcon(Icons.Rounded.GraphicEq, Palette.Teal, size = 18.dp)
+                Text(snap.snoreEventCount.toString(), style = MaterialTheme.typography.titleMedium, color = Palette.TextPrimary)
+                Spacer(Modifier.width(8.dp))
+                GlyphIcon(Icons.Rounded.Vibration, Palette.Amber, size = 18.dp)
+                Text(snap.nudgeCount.toString(), style = MaterialTheme.typography.titleMedium, color = Palette.TextPrimary)
+            }
+            if (snap.startDelayRemainingMs > 0L) {
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    GlyphIcon(Icons.Rounded.Timer, Palette.TextSecondary, size = 12.dp)
+                    Text(
+                        "Nudges in " + formatMinSec(snap.startDelayRemainingMs),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.TextSecondary,
+                    )
+                }
+            }
         }
     }
 }

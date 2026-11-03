@@ -34,12 +34,14 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SwitchButton
 import androidx.wear.compose.material3.Text
 import ro.goldenlobster.snorenudge.haptics.VibrationController
+import ro.goldenlobster.snorenudge.service.MonitorSnapshot
 import ro.goldenlobster.snorenudge.service.MonitorState
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MeterBar
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.Pill
 import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.components.rememberHeaderListState
 import ro.goldenlobster.snorenudge.ui.components.SectionLabel
 import ro.goldenlobster.snorenudge.ui.components.SurfaceCard
 import ro.goldenlobster.snorenudge.ui.theme.Palette
@@ -56,13 +58,31 @@ fun LiveTestScreen(onStart: () -> Unit) {
     val snap by MonitorState.state.collectAsStateWithLifecycle()
     val ctx: Context = LocalContext.current
     val vibration = remember { VibrationController(ctx.applicationContext) }
-    val listState = rememberScalingLazyListState()
 
     // Forces inference while visible; cleared on leave (also when the activity stops).
     DisposableEffect(Unit) {
         MonitorState.setLiveTestActive(true)
         onDispose { MonitorState.setLiveTestActive(false) }
     }
+
+    LiveTestContent(
+        snap = snap,
+        onStart = onStart,
+        onTestModeChange = { MonitorState.setTestMode(it) },
+        onVibrate = { level -> vibration.vibrate(level) },
+    )
+}
+
+/** Stateless Live test content: plain data in, callbacks out. Used by [LiveTestScreen] and the screenshot tests. */
+@Composable
+internal fun LiveTestContent(
+    snap: MonitorSnapshot,
+    onStart: () -> Unit,
+    onTestModeChange: (Boolean) -> Unit,
+    onVibrate: (Int) -> Unit,
+    initialCenterItemIndex: Int = 0,
+) {
+    val listState = rememberHeaderListState(initialCenterItemIndex)
 
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
@@ -71,6 +91,7 @@ fun LiveTestScreen(onStart: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = null,
         ) {
             item { ScreenHeader(Icons.Rounded.GraphicEq, "Live test") }
 
@@ -167,7 +188,7 @@ fun LiveTestScreen(onStart: () -> Unit) {
             item {
                 SwitchButton(
                     checked = snap.testMode,
-                    onCheckedChange = { MonitorState.setTestMode(it) },
+                    onCheckedChange = onTestModeChange,
                     enabled = !snap.running,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                     icon = { GlyphIcon(Icons.Rounded.Science, if (snap.testMode) Palette.Amber else Palette.TextSecondary, size = 22.dp) },
@@ -182,7 +203,7 @@ fun LiveTestScreen(onStart: () -> Unit) {
             for (level in 1..3) {
                 item {
                     FilledTonalButton(
-                        onClick = { vibration.vibrate(level) },
+                        onClick = { onVibrate(level) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         icon = { GlyphIcon(Icons.Rounded.Vibration, Palette.Amber, size = 22.dp) },
                         label = { Text("Level $level") },

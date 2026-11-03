@@ -40,6 +40,7 @@ import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.Pill
 import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.components.rememberHeaderListState
 import ro.goldenlobster.snorenudge.ui.components.StatTile
 import ro.goldenlobster.snorenudge.ui.components.SurfaceCard
 import ro.goldenlobster.snorenudge.ui.theme.ChartColors
@@ -56,7 +57,17 @@ fun HistoryScreen(onNight: (Long) -> Unit) {
     val ctx = LocalContext.current.applicationContext
     val flow = remember { AppDatabase.get(ctx).sessions().observeFinished(NIGHTS) }
     val sessions by flow.collectAsStateWithLifecycle(initialValue = emptyList())
-    val listState = rememberScalingLazyListState()
+    HistoryContent(sessions = sessions, onNight = onNight)
+}
+
+/** Stateless History content. [today] only drives which bar is highlighted; injectable for deterministic screenshots. */
+@Composable
+internal fun HistoryContent(
+    sessions: List<NightSession>,
+    onNight: (Long) -> Unit,
+    today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+) {
+    val listState = rememberHeaderListState()
     // Test-mode runs are listed but kept out of the averages and the chart.
     val real = sessions.filter { !it.testMode }
 
@@ -67,12 +78,13 @@ fun HistoryScreen(onNight: (Long) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = null,
         ) {
-            item { ScreenHeader(Icons.Rounded.History, "Last 30 nights") }
+            item { ScreenHeader(Icons.Rounded.History, "Last 30 nights", "Nightly averages") }
             if (sessions.isEmpty()) {
                 item { MutedText("No nights recorded yet") }
             } else {
-                item { SummaryCard(real) }
+                item { SummaryCard(real, today) }
                 sessions.forEach { s ->
                     item(key = s.id) { NightCard(s) { onNight(s.id) } }
                 }
@@ -82,21 +94,21 @@ fun HistoryScreen(onNight: (Long) -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(nights: List<NightSession>) {
-    SurfaceCard {
+private fun SummaryCard(nights: List<NightSession>, today: LocalDate) {
+    SurfaceCard(fraction = 0.96f) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val n = nights.size
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth()) {
                 StatTile(
                     Icons.Rounded.GraphicEq,
-                    if (n == 0) "--" else String.format(Locale.US, "%.0f", nights.sumOf { it.snoringMinutes } / n.toDouble()),
-                    "avg min",
+                    if (n == 0) "--" else String.format(Locale.US, "%.0f min", nights.sumOf { it.snoringMinutes } / n.toDouble()),
+                    "snoring",
                     modifier = Modifier.weight(1f),
                 )
                 StatTile(
                     Icons.Rounded.Vibration,
                     if (n == 0) "--" else String.format(Locale.US, "%.1f", nights.sumOf { it.nudges } / n.toDouble()),
-                    "avg nudges",
+                    "nudges",
                     modifier = Modifier.weight(1f),
                     tint = Palette.Amber,
                 )
@@ -104,7 +116,7 @@ private fun SummaryCard(nights: List<NightSession>) {
             }
             if (n > 0) {
                 val chrono = nights.sortedBy { it.startedAt }
-                NightsBarChart(chrono)
+                NightsBarChart(chrono, today)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(shortDateLabel(chrono.first().startedAt), style = MaterialTheme.typography.labelSmall, color = ChartColors.Label)
                     Text(shortDateLabel(chrono.last().startedAt), style = MaterialTheme.typography.labelSmall, color = ChartColors.Label)
@@ -116,9 +128,8 @@ private fun SummaryCard(nights: List<NightSession>) {
 
 /** Rounded bars, one per night (snoring minutes), oldest left, newest right, in a fixed 30-slot grid. Today is brighter. */
 @Composable
-private fun NightsBarChart(chrono: List<NightSession>, modifier: Modifier = Modifier) {
+private fun NightsBarChart(chrono: List<NightSession>, today: LocalDate, modifier: Modifier = Modifier) {
     val zone = remember { ZoneId.systemDefault() }
-    val today = remember { LocalDate.now(zone) }
     Canvas(modifier = modifier.fillMaxWidth().height(52.dp)) {
         val slots = NIGHTS
         val slotW = size.width / slots

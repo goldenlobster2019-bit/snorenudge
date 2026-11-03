@@ -38,6 +38,7 @@ import androidx.wear.compose.material3.Text
 import ro.goldenlobster.snorenudge.ui.components.GlyphIcon
 import ro.goldenlobster.snorenudge.ui.components.MutedText
 import ro.goldenlobster.snorenudge.ui.components.ScreenHeader
+import ro.goldenlobster.snorenudge.ui.components.rememberHeaderListState
 import ro.goldenlobster.snorenudge.ui.theme.Palette
 
 @Composable
@@ -51,7 +52,31 @@ fun SetupScreen(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         onPermissionsResult()
     }
-    val listState = rememberScalingLazyListState()
+    SetupContent(
+        micGranted = micGranted,
+        notifGranted = notifGranted,
+        batteryExempt = batteryExempt,
+        onGrant = {
+            val perms = buildList {
+                add(Manifest.permission.RECORD_AUDIO)
+                if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            launcher.launch(perms.toTypedArray())
+        },
+        onBatteryExemption = { requestBatteryExemption(ctx) },
+    )
+}
+
+/** Stateless Setup content: plain data in, callbacks out. Used by [SetupScreen] and the screenshot tests. */
+@Composable
+internal fun SetupContent(
+    micGranted: Boolean,
+    notifGranted: Boolean,
+    batteryExempt: Boolean,
+    onGrant: () -> Unit,
+    onBatteryExemption: () -> Unit,
+) {
+    val listState = rememberHeaderListState()
 
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
@@ -60,6 +85,7 @@ fun SetupScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
+            autoCentering = null,
         ) {
             item { ScreenHeader(Icons.Rounded.Bedtime, "Setup") }
             item {
@@ -69,22 +95,16 @@ fun SetupScreen(
             item { PermissionRow(Icons.Rounded.NotificationsActive, "Notifications", notifGranted) }
             item {
                 Button(
-                    onClick = {
-                        val perms = buildList {
-                            add(Manifest.permission.RECORD_AUDIO)
-                            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                        launcher.launch(perms.toTypedArray())
-                    },
+                    onClick = onGrant,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     icon = { GlyphIcon(Icons.Rounded.CheckCircle, Palette.Background, size = 22.dp) },
                     label = { Text("Grant permissions") },
                 )
             }
-            item { PermissionRow(Icons.Rounded.BatteryFull, "Battery exemption", batteryExempt) }
+            item { PermissionRow(Icons.Rounded.BatteryFull, "Battery", batteryExempt) }
             item {
                 FilledTonalButton(
-                    onClick = { requestBatteryExemption(ctx) },
+                    onClick = onBatteryExemption,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     icon = { GlyphIcon(Icons.Rounded.BatteryFull, Palette.Teal, size = 22.dp) },
                     label = { Text("Battery exemption") },
@@ -104,12 +124,12 @@ internal fun PermissionRow(icon: ImageVector, label: String, ok: Boolean) {
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Palette.Surface)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        GlyphIcon(icon, Palette.TextSecondary, size = 20.dp)
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.TextPrimary, modifier = Modifier.weight(1f), maxLines = 1)
+        GlyphIcon(icon, Palette.TextSecondary, size = 18.dp)
+        Text(label, style = MaterialTheme.typography.titleSmall, color = Palette.TextPrimary, modifier = Modifier.weight(1f), maxLines = 2)
         if (ok) {
             GlyphIcon(Icons.Rounded.CheckCircle, Palette.Teal, size = 20.dp)
         } else {
