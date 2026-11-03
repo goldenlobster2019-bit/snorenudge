@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingTileAction = tileActionOf(intent)
+        ro.goldenlobster.snorenudge.data.LogExporter.exportAsync(this)
         setContent { SnoreNudgeTheme { AppScaffold { Root() } } }
     }
 

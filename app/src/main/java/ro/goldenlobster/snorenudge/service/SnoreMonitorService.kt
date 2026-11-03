@@ -155,7 +155,7 @@ class SnoreMonitorService : Service() {
         vibration = VibrationController(applicationContext, settings.strength)
         recorder = SessionRecorder(applicationContext).also { it.start(now, testMode, settings.summary(testMode)) }
         nightLog = NightLog(File(filesDir, "nights"), now).also {
-            it.row(now, "start", note = "testMode=$testMode ${config.summary()}")
+            it.row(now, "start", note = "testMode=$testMode batt=${batteryPct()} ${config.summary()}")
         }
         Log.i(TAG, "session start testMode=$testMode ${config.summary()}")
         MonitorState.update {
@@ -467,13 +467,22 @@ class SnoreMonitorService : Service() {
         nightLog?.row(
             System.currentTimeMillis(), "summary", floorDb = gate.noiseFloorDb,
             note = String.format(
-                Locale.US, "gateRatio=%.2f avgMs=%.1f inferences=%d events=%d nudges=%d",
-                gate.openRatio, avg, n, ev, nu,
+                Locale.US, "gateRatio=%.2f avgMs=%.1f inferences=%d events=%d nudges=%d batt=%d charging=%b",
+                gate.openRatio, avg, n, ev, nu, batteryPct(), isCharging(),
             ),
         )
         nightLog?.flush()
         recorder?.onMinuteSummary(System.currentTimeMillis(), gate.openRatio, gate.noiseFloorDb, n, ms)
     }
+
+    private fun batteryPct(): Int = try {
+        (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager)
+            .getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    } catch (_: Exception) { -1 }
+
+    private fun isCharging(): Boolean = try {
+        (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).isCharging
+    } catch (_: Exception) { false }
 
     override fun onDestroy() {
         val wasStarted = started
@@ -491,6 +500,8 @@ class SnoreMonitorService : Service() {
         }
         nightLog?.close()
         nightLog = null
+        // Mirror logs + DB for adb pull once the night log and session row are finalised.
+        ro.goldenlobster.snorenudge.data.LogExporter.exportAsync(applicationContext, delayMs = 3_000L)
         recorder?.let { r ->
             val snap = MonitorState.state.value
             val appCtx = applicationContext
